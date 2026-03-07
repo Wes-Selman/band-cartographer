@@ -1,0 +1,45 @@
+# GarageBand project bundles
+# ─────────────────────────────────────────────────────────────────────────────
+# The canonical baseline.band IS committed to the repo so all contributors
+# start from the same file. All other .band files (experiment files, personal
+# projects) are excluded — they can be large and contain personal audio.
+
+# Exclude all .band bundles by default
+*.band/
+
+# But allow the canonical baseline at the repo root
+!baseline.band/
+!baseline.band/**
+
+# Also allow baseline.band if someone copies it into an experiments subfolder
+# (the script uses experiments/ which is gitignored anyway, so this is moot,
+# but included for clarity)
+
+# Personal experiment folders — keep local, never commit
+experiments/
+
+# macOS system files
+.DS_Store
+**/.DS_Store
+._*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Reports (generated — don't need to be committed, research.json is the source)
+report.txt
+
+# Personal experiment folders
+# If you want to keep your .band files locally, put them in experiments/
+# The experiments/ folder is gitignored so they stay local
+experiments/
+
+# IDE
+.vscode/
+.idea/
+*.swp
