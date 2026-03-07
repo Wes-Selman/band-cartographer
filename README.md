@@ -48,12 +48,12 @@ parser.py (coming soon) reads those fields
 
 ## Setup
 
-```bash
 # Clone the repo
+git clone https://github.com/Wes-Selman/band-cartographer
+cd band-cartographer
 
 # Install dependencies
 pip3 install -r requirements.txt
-```
 
 ---
 
