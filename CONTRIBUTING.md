@@ -14,7 +14,7 @@ Thanks for helping map the GarageBand binary format. Every GarageBand version an
 ### 1. Fork and clone
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/garageband-format-research
+git clone XXX
 cd garageband-format-research
 pip3 install -r requirements.txt
 ```
