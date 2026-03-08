@@ -1,6 +1,6 @@
 # GarageBand Format Research
 
-Open reverse engineering of the GarageBand `.band` file format — specifically the binary blob inside `projectData` that stores tracks, regions, tempo, and plugin state.
+Open reverse engineering of the GarageBand `.band` file format — specifically the binary blob inside `ProjectData` that stores tracks, regions, tempo, and plugin state.
 
 **The goal:** build a public map of the binary format so that tools like version control, diff viewers, and DAW bridges can read and write GarageBand projects programmatically.
 
@@ -8,11 +8,11 @@ Open reverse engineering of the GarageBand `.band` file format — specifically 
 
 ## Why this exists
 
-GarageBand's `.band` files are folder bundles containing a `projectData` file. The outer wrapper is NSKeyedArchiver (which we can decode with [`nska_deserialize`](https://github.com/avibrazil/NSKeyedArchiver)). But the core song data — tracks, regions, tempo — lives inside a proprietary binary blob called `DfLogicModelLogicSong` that Apple has never documented.
+GarageBand's `.band` files are folder bundles containing a `ProjectData` file. On GarageBand 10.4+, this is a raw proprietary binary starting with the magic bytes `gnoS` ("Song" reversed). On older versions it is wrapped in NSKeyedArchiver (decodable with [`nska_deserialize`](https://github.com/avibrazil/NSKeyedArchiver)). Either way, the core song data — tracks, regions, tempo, plugin chains — lives inside an undocumented binary format that Apple has never published.
 
-This project maps that blob systematically: make one change in GarageBand, diff the binary, record what moved. After enough experiments, patterns emerge and we can build a parser.
+This project maps that binary systematically: make one change in GarageBand, diff the binary, record what moved. After enough experiments, patterns emerge and we can build a parser.
 
-This research will feed directly into a project I am working on but the format map is useful to anyone building tools around GarageBand or Logic Pro.
+This research feeds directly into a project I am working on but the format map is useful to anyone building tools around GarageBand or Logic Pro.
 
 ---
 
@@ -20,11 +20,11 @@ This research will feed directly into a project I am working on but the format m
 
 See [`FINDINGS.md`](FINDINGS.md) for the human-readable summary of what has been confirmed so far.
 
-Research data by GarageBand version lives in [`/research`](research/):
+Research reports by GarageBand version:
 
 | Version | Arch | Experiments | Contributor |
 |---|---|---|---|
-| *(none yet — be the first!)* | | | |
+| 10.4.8 | arm64 | 18/18 | Wes Selman |
 
 ---
 
@@ -35,7 +35,9 @@ You make one change in GarageBand
         ↓
 band_cartographer.py diffs the binary blobs
         ↓
-research.json logs which byte ranges changed
+Noise mask filters out always-changing bytes (timestamps, counters)
+        ↓
+report.txt logs which meaningful byte ranges changed
         ↓
 After many experiments, patterns emerge
         ↓
@@ -48,12 +50,14 @@ parser.py (coming soon) reads those fields
 
 ## Setup
 
+```bash
 # Clone the repo
 git clone https://github.com/Wes-Selman/band-cartographer
 cd band-cartographer
 
 # Install dependencies
 pip3 install -r requirements.txt
+```
 
 ---
 
@@ -77,13 +81,33 @@ Double-click `experiments/baseline.band` to open it. **GarageBand rewrites the f
 
 If you run `verify-baseline` again after this first open you'll see a hash mismatch warning. That is fine — the script explains this and lets you continue.
 
-### 3. Make one change
+### 3. Build your noise mask
 
-In GarageBand, make **exactly one change** from the list below. Save a copy with the canonical label name:
+GarageBand rewrites a large number of byte ranges on every save regardless of what the user changed — timestamps, session counters, internal checksums. Without filtering these out, every experiment produces tens of thousands of spurious changed ranges that obscure the real signal.
+
+To build your noise mask:
+
+- With `experiments/baseline.band` already open in GarageBand, make **no changes**
+- **File → Save As** → save it as `experiments/noise-sampler.band`
+- Run:
+
+```bash
+python3 band_cartographer.py learn-noise \
+    experiments/baseline.band \
+    experiments/noise-sampler.band
+```
+
+This writes a `noise_mask.json` to your research folder. All future diffs will automatically filter these offsets out. **This step makes a significant difference** — on GarageBand 10.4.8 arm64, it removes ~18,600 spurious ranges per experiment.
+
+### 4. Make one change and save an experiment file
+
+In GarageBand, make **exactly one change** from the canonical list. Then save a copy with the canonical label name:
 
 ```bash
 # Example: you added one audio track
-cp -r ~/Music/GarageBand/MyChanged.band experiments/add-audio-track.band
+# In GarageBand: File → Save As → add-audio-track.band
+# Move it into your experiments folder:
+mv ~/Music/GarageBand/add-audio-track.band experiments/
 ```
 
 See the full list of canonical experiments:
@@ -91,7 +115,7 @@ See the full list of canonical experiments:
 python3 band_cartographer.py list
 ```
 
-### 3. Run the diff
+### 5. Run the diff
 
 ```bash
 python3 band_cartographer.py diff \
@@ -99,18 +123,20 @@ python3 band_cartographer.py diff \
     experiments/add-audio-track.band
 ```
 
-The results are automatically written to `research/<your-gb-version>/research.json`.
+Results are automatically written to `research/<your-gb-version>/research.json` and `report.txt`.
 
-### 4. Batch process (once you have several files)
+### 6. Batch process (once you have several files)
 
 ```bash
 python3 band_cartographer.py batch experiments/
 ```
 
-### 5. View findings
+### 7. View findings
 
 ```bash
 python3 band_cartographer.py report experiments/
+# or read the file directly:
+cat research/<version>_<arch>/report.txt
 ```
 
 ---
@@ -150,46 +176,30 @@ Different GarageBand versions and Mac architectures (Intel x86_64 vs Apple Silic
 # Check what you have so far
 python3 band_cartographer.py status experiments/
 
-# Stage and push your research
+# Generate your report and prepare to contribute
 python3 band_cartographer.py contribute experiments/
 ```
 
-Then open a Pull Request. The script will give you the exact commit message to use.
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for full details.
+Then open a Pull Request with your `report.txt`. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for full details.
 
 ---
 
-## What the research.json looks like
+## What the report looks like
 
-Each entry records one experiment — the label, the environment it was run on, and the exact byte ranges that changed:
+Each experiment shows the label, size delta, and the meaningful byte ranges that changed after noise filtering:
 
-```json
-{
-  "label": "add-audio-track",
-  "description": "Add one empty audio track",
-  "timestamp": "2026-03-07T14:00:00Z",
-  "environment": {
-    "garageband_version": "10.4.8",
-    "architecture": "x86_64",
-    "macos_version": "13.6",
-    "CbVersion": 30000
-  },
-  "outer_diff": [],
-  "inner_diff": {
-    "size_delta": 512,
-    "num_changed_ranges": 3,
-    "changed_ranges": [
-      {
-        "offset_hex": "0x40",
-        "length": 4,
-        "as_uint32_le": "8",
-        "as_float32": null
-      }
-    ]
-  }
-}
 ```
+[change-tempo-1bpm]  Δsize=-104  ranges=4  (+18626 noisy filtered)
+  offset 0xaa   len=2  uint32=1210000
+  offset 0x102  len=2  uint32=1210000
+  offset 0x3be  len=2  uint32=1210000
+  offset 0x12cc len=2  uint32=1210000  near='tSxT'
+
+[change-track-pan]  Δsize=-104  ranges=1  (+18628 noisy filtered)
+  offset 0xc5   len=1  uint32=8
+```
+
+The noise filtering is what makes these results readable — without it, `change-track-pan` would show 18,629 changed ranges instead of 1.
 
 ---
 
@@ -214,13 +224,15 @@ The hash only verifies the inner binary blob — it will not match after GarageB
 
 ---
 
-- [nska_deserialize](https://github.com/avibrazil/NSKeyedArchiver) — the library used to decode the outer NSKeyedArchiver wrapper
+## References
+
+- [nska_deserialize](https://github.com/avibrazil/NSKeyedArchiver) — the library used to decode the outer NSKeyedArchiver wrapper on older GB versions
 - [Robert Heaton's Logic Pro synth file reverse engineering](https://robertheaton.com/2017/07/17/reverse-engineering-logic-pro-synth-files/) — the methodology this project is based on
 
 ---
 
 ## License
 
-Research data (`research.json` files) is released under [CC0](https://creativecommons.org/publicdomain/zero/1.0/) — no rights reserved, use freely.
+Research data (`report.txt` files) is released under [CC0](https://creativecommons.org/publicdomain/zero/1.0/) — no rights reserved, use freely.
 
 Code (`band_cartographer.py`) is MIT licensed.
