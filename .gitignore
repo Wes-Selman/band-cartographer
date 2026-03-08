@@ -11,12 +11,16 @@
 !baseline.band/
 !baseline.band/**
 
-# Also allow baseline.band if someone copies it into an experiments subfolder
-# (the script uses experiments/ which is gitignored anyway, so this is moot,
-# but included for clarity)
-
 # Personal experiment folders — keep local, never commit
 experiments/
+
+# Research output
+# ─────────────────────────────────────────────────────────────────────────────
+# research.json is too large to review or commit (several MB, millions of lines).
+# report.txt is the human-readable summary and IS committed — it is what
+# contributors submit in Pull Requests.
+research.json
+noise_mask.json
 
 # macOS system files
 .DS_Store
@@ -30,14 +34,6 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
-
-# Reports (generated — don't need to be committed, research.json is the source)
-report.txt
-
-# Personal experiment folders
-# If you want to keep your .band files locally, put them in experiments/
-# The experiments/ folder is gitignored so they stay local
-experiments/
 
 # IDE
 .vscode/
